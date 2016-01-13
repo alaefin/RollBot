@@ -4,6 +4,7 @@ if ( PHP_SAPI !== 'cli' ) {
     return;
 }
 $config = \json_decode( \file_get_contents( __DIR__ . '/rollbotconfig.json' ), true );
+define( 'ROLLBOT_COUNT_EVERY_X_PAGES', 1 );
 
 echo "Offender : {$config['offender']}
 Start timestamp : {$config['starttimestamp']}
@@ -92,9 +93,9 @@ if ( \array_diff( $config['namespaces'], \array_keys( $localNamespaces ) ) ) {
     return;
 }
 
-/* * ***************************
- * Get a list of pages edited *
- * *************************** */
+/*****************************
+* Get a list of pages edited *
+*****************************/
 // Setting params that need to be passed identically with every request
 $baseContribsListOptions = [
     'action' => 'query',
@@ -145,9 +146,9 @@ while ( true ) {
 
 echo "\n", $pagesCount = \count( $pagesList ), " pages edited by {$config['offender']} since {$config['starttimestamp']}\n\n";
 
-/* * ******************************
- * Getting things back to normal *
- * ****************************** */
+/********************************
+* Getting things back to normal *
+********************************/
 
 // Truncating/creating log pages for the current instance of the bot.
 \file_put_contents( __DIR__ . '/rollbotpagesfordeletion', "\n== Pages for deletion ==\nThe following pages should be flagged for deletion (most likely because they were created by {$config['offender']} since {$config['starttimestamp']} and no other user edited them) :\n" );
@@ -155,6 +156,9 @@ echo "\n", $pagesCount = \count( $pagesList ), " pages edited by {$config['offen
 \file_put_contents( __DIR__ . '/rollboteditlog', "\n== Pages successfully edited ==\nThe following pages were edited by {$config['offender']} since {$config['starttimestamp']}, they were reverted to a sane version :\n" );
 if ( \file_exists( __DIR__ . '/rollbotreport' ) ) {
     \unlink( __DIR__ . '/rollbotreport' );
+}
+if ( \file_exists( __DIR__ . '/rollboterrorlog' ) ) {
+    \unlink( __DIR__ . '/rollboterrorlog' );
 }
 $pageCounter = 0;
 
@@ -166,8 +170,10 @@ foreach ( $pagesList as $pageId => $page ) {
     $otherUsers = [];
     $otherUsersMessage = "";
 
-    if ( $pageCounter % 1 === 0 ) {
-        echo \sprintf( '%' . \strlen( $pagesCount ) . 'd', ++$pageCounter ), ' /', $pagesCount, "\n";
+    // Progress report for the human operator
+    $pageCounter++;
+    if ( $pageCounter % ROLLBOT_COUNT_EVERY_X_PAGES === 0 ) {
+        echo \sprintf( '%' . \strlen( $pagesCount ) . 'd', $pageCounter ), ' / ', $pagesCount, "\n";
     }
 
     // First, let's establish the first edit by the offender on that page since
@@ -276,8 +282,8 @@ foreach ( $pagesList as $pageId => $page ) {
         }
         // If other users edited the page since the offender created it,
         // they should be listed in the message.
-        $otherUsersMessage = "* [[{$page['title']}]] : [[Special:Diff/{$firstBadRevision['id']}|created {$firstbadRevision['timestamp']}]]] by {$config['offender']}, ";
-        $otherUsersMessage.= 'then edited by [[Special:Contributions/' . \array_keys( $otherUsers )[0]['user'] . '|]] at ' . \array_values( $otherUsers )[0]['timestamp'];
+        $otherUsersMessage = "* [[{$page['title']}]] : [[Special:Diff/{$firstBadRevision['revid']}|created {$firstBadRevision['timestamp']}]]] by {$config['offender']}, ";
+        $otherUsersMessage.= 'then edited by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
         if ( \count( $otherUsers ) > 1 ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
                 \array_map(
@@ -307,8 +313,8 @@ foreach ( $pagesList as $pageId => $page ) {
         // we let humans decide what should be done if the bot isn't set to nuke.
         // If it is set to nuke, we delegate the reverting to the normal editing
         // process, and log the list of other users so they can be warned
-        $otherUsersMessage = "* [[{$page['title']}]] ([[Special:Diff/{$firstBadRevision['id']}|edited {$firstbadRevision['timestamp']}]]] by {$config['offender']}, ";
-        $otherUsersMessage.= 'then by [[Special:Contributions/' . \array_keys( $otherUsers )[0]['user'] . '|]] at ' . \array_values( $otherUsers )[0]['timestamp'];
+        $otherUsersMessage = "* [[{$page['title']}]] ([[Special:Diff/{$firstBadRevision['revid']}|edited {$firstBadRevision['timestamp']}]]] by {$config['offender']}, ";
+        $otherUsersMessage.= 'then by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
         if ( \count( $otherUsers ) > 1 ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
                 \array_map(
@@ -331,20 +337,20 @@ foreach ( $pagesList as $pageId => $page ) {
     // Now for the actual editing.
     // Setting the edit summary
     if ( ( !empty( $config['nuke'] ) ) && ( !empty( $otherUsers ) ) ) {
-        $editSummary = "Overwriting all revs since the first edit by [[Special:Contributions/{$config['offender']}|]] after {$config['starttimestamp']}, to [[Special:Permalink/{$goodRevision['revid']}]] per {$config['botrequesturl']}";
+        $editSummary = "Overwriting all revs since the first edit by [[Special:Contributions/{$config['offender']}]] after {$config['starttimestamp']}, to [[Special:Permalink/{$goodRevision['revid']}]] per [[Special:Diff/{$config['botrequestrevid']}]]";
     }
     else {
-        $editSummary = "Rv edits by [[Special:Contributions/{$config['offender']}|]] since {$config['starttimestamp']}, to [[Special:Permalink/{$goodRevision['revid']}|]] by {$goodRevision['user']}, per [[Special:Diff/{$config['botrequestrevid']}]]";
+        $editSummary = "Rv edits by [[Special:Contributions/{$config['offender']}]] since {$config['starttimestamp']}, to [[Special:Permalink/{$goodRevision['revid']}]] by {$goodRevision['user']}, per [[Special:Diff/{$config['botrequestrevid']}]]";
     }
 
     // Finally, editing and checking for success.
     if ( ( isset( $localNamespaces [ $page['ns'] ]['defaultcontentmodel'] ) ) && ( $localNamespaces [ $page['ns'] ]['defaultcontentmodel'] === 'wikibase-item' ) ) {
         // In the event we're editing a Wikibase entity on a Wikibase wiki (NS0)
         $edit = \json_decode( $api->request( 'POST', 'w/api.php', [
-            'form_params' => [
+            'form_params' => $form_params = [
                 'action' => 'wbeditentity',
                 'id' => $page['title'],
-                'clear' => '',
+                'clear' => '1',
                 'data' => $goodRevision['content'],
                 'summary' => $editSummary,
                 'nocreate' => 1,
@@ -354,7 +360,7 @@ foreach ( $pagesList as $pageId => $page ) {
             ] + $format//includes assert=user
         ] )->getBody(), true );
         if ( !empty( $edit['success'] ) ) {
-            $editLogMessage = "* [[{$page['title']}]] : [[Special:Diff/{$edit['entity']['lastrevid']}|reverting]] to [[Special:Permalink/{$goodRevision['revid']}|rev {$goodRevision['revid']}]] ({$goodRevision['timestamp']}) by {$goodRevision['user']}";
+            $editLogMessage = "* [[{$page['title']}]] (entity) : [[Special:Diff/{$edit['entity']['lastrevid']}|reverting]] to [[Special:Permalink/{$goodRevision['revid']}|rev {$goodRevision['revid']}]] ({$goodRevision['timestamp']}) by {$goodRevision['user']}";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
                 $editLogMessage .= "\n*" . $otherUsersMessage;
             }
@@ -366,6 +372,7 @@ foreach ( $pagesList as $pageId => $page ) {
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
                 $editLogMessage .= "\n*" . $otherUsersMessage;
             }
+            \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
             continue;
         }
@@ -373,7 +380,7 @@ foreach ( $pagesList as $pageId => $page ) {
     else {
         // Editing any other page than a Wikibase entity
         $edit = \json_decode( $api->request( 'POST', 'w/api.php', [
-            'form_params' => [
+            'form_params' => $form_params = [
                 'action' => 'edit',
                 'title' => $page['title'],
                 'summary' => $editSummary,
@@ -398,22 +405,50 @@ foreach ( $pagesList as $pageId => $page ) {
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
                 $editLogMessage .= "\n*" . $otherUsersMessage;
             }
+            \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
             continue;
         }
     }
+    // Per https://en.wikipedia.org/wiki/Wikipedia:Bot_policy#Bot_requirements
+    // "bots doing more urgent tasks may edit approximately once every five seconds".
+    // This will probably mean morea time than 5 seconds (pages for check, etc...)
+    // but better safe than sorry
+    sleep(5);
+
 }
 /*************************
 *     Posting reports    *
 *************************/
+// Establishing the content of the report
+// Link to the bot request
+$reportContent = "[[Special:Diff/{$config['botrequestrevid']}|Request]]\n\n";
+// List of namespaces edited by the bot
+$reportContent .= "Namespaces : ";
+$reportContentNamespaces = [];
+foreach ( $config['namespaces'] as $namespaceId ) {
+    $reportContentNamespaces[] = trim( $localNamespaces[ $namespaceId ]['name'] . ' (' . $namespaceId . ')' );
+}
+$reportContent .= \implode( ', ', $reportContentNamespaces )."\n\n";
+// Whether or not the bot is set to nuke
+if ( !empty( $config['nuke'] ) ) {
+    $reportContent .= "'''Overwriting''' (and reporting) subsequent edits ''by other users''.\n\n";
+}
+else {
+    $reportContent .= "Not editing (but reporting) pages subsequently edited ''by other users''.\n\n";
+}
+// List of pages verified by the bot
+$reportContent .= \file_get_contents( __DIR__ . '/rollboteditlog' ) . "\n" . \file_get_contents( __DIR__ . '/rollbotpagesfordeletion' ) . "\n" . \file_get_contents( __DIR__ . '/rollbotpagesforcheck' );
+
+// Publising the report
 $reporting = \json_decode( $api->request( 'POST', 'w/api.php', [
-    'form_params' => [
+    'form_params' => $form_params = [
         'action' => 'edit',
         'title' => "User:{$config['lg']['lgname']}/Reports/{$config['offender']}/{$config['starttimestamp']}",
-        'text' => $reportContent = "[{$config['botrequesturl']} Request]\n" . \file_get_contents( __DIR__ . '/rollboteditlog' ) . \file_get_contents( __DIR__ . '/rollbotpagesfordeletion' ) . \file_get_contents( __DIR__ . '/rollbotpagesforcheck' ),
         'watchlist' => 'nochange',
         'bot' => 1,
         'token' => $editToken,
+        'text' => $reportContent,
     ] + $format //includes assert=user
 ] )->getBody(), true );
 
@@ -423,6 +458,7 @@ if ( ( isset( $reporting['edit']['result'] ) ) && ( $reporting['edit']['result']
 }
 else {
     echo "Difficulty posting my report {$config['wiki']}/wiki/User:{$config['lg']['lgname']}/Reports/{$config['offender']}/{$config['starttimestamp']} , exiting...\n";
+    \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $reporting, \JSON_PRETTY_PRINT ) );
     \file_put_contents( __DIR__ . '/rollbotreport' , \json_encode( $reporting, \JSON_PRETTY_PRINT ) . "\n" . $reportContent );
     return;
 }

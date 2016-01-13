@@ -78,6 +78,11 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
         \header( 'Location: configsetter.php?error=nonamespace' );
         return;
     }
+    foreach ( $_POST['namespaces'] as $key => $value ) {
+        if ( $value < 0 ) {
+            unset( $_POST['namespaces'][ $key ] );
+        }
+    }
     $config['namespaces'] = \array_keys( $_POST['namespaces'] );
     $localNamespacesRequest = \json_decode( $api->request( 'POST', $config['wiki'] . '/w/api.php',  [
         'form_params' => [
@@ -98,14 +103,33 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
         return;
     }
     
-    // The bot request URL doesn't have to be a diff, but it has to be on one of
-    // the sites handled by the Wikimedia Foundation
-    $botrequesthost = \parse_url( $_POST['botrequesturl'], \PHP_URL_HOST );
-    if ( ( !isset( $botrequesthost ) ) || ( \array_search_recursive( 'https://' . $botrequesthost, $sitematrix, true ) === false ) ) {
+    // The bot request URL should be a diff on one of the sites handled
+    // by the Wikimedia Foundation
+    $botRequestArray = \parse_url( $_POST['botrequesturl'] );
+    if ( ( empty( $botRequestArray['host'] ) ) || ( \array_search_recursive( 'https://' . $botRequestArray['host'], $sitematrix, true ) === false ) ) {
         \header( 'Location: configsetter.php?error=requesturl');
         return;
     }
-    $config['botrequesturl'] = $_POST['botrequesturl'];
+    if ( !empty( $botRequestArray['query'] ) ) {
+        \parse_str( $botRequestArray['query'], $botRequestQuery );
+        // If the query has no 'diff' or 'oldid' element, no way to get a revid
+        if ( isset( $botRequestQuery['diff'] ) ) {
+            if ( ( $botRequestQuery['diff'] === 'prev' ) && ( ( !empty( $botRequestQuery['oldid'] ) ) && ( \ctype_digit( $botRequestQuery['oldid'] ) ) ) ) {
+                $config['botrequestrevid'] = $botRequestQuery['oldid'];
+            }
+            elseif ( \ctype_digit( $botRequestQuery['diff'] ) ) {
+                $config['botrequestrevid'] = $botRequestQuery['diff'];
+            }
+            else {
+                \header( 'Location: configsetter.php?error=requesturl');
+                return;
+            }
+        }
+        else {
+            \header( 'Location: configsetter.php?error=requesturl');
+            return;
+        }
+    }
     
     // Whether or not to overwrite edits by other users
     if ( !empty( $_POST['nuke'] ) ) {
@@ -113,7 +137,7 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
     }
     
     // Finally, saving the config
-    \file_put_contents( __DIR__ .'/rollbotconfig.json', \json_encode( $config, \JSON_FORCE_OBJECT ) );
+    \file_put_contents( __DIR__ .'/rollbotconfig.json', \json_encode( $config ) );
 }
 
 ?><!DOCTYPE html>
@@ -130,7 +154,7 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
     $config['lg']['lgpassword'] = '****'; ?>
         <div style="border: 1px solid #0f0; background-color: #bfb; margin: 2em 8em; padding: 2em 5em; width: auto; text-align: center;">
                 Configuration updated :
-                <div style="text-align: left; width: -moz-max-content; margin: auto auto 1.5em; border: 1px solid #080; background-color: #8f8; padding: 1em;"><code style="white-space: pre;"><?php echo \json_encode( $config, \JSON_FORCE_OBJECT | \JSON_PRETTY_PRINT ); ?></code>
+                <div style="text-align: left; width: -moz-max-content; margin: auto auto 1.5em; border: 1px solid #080; background-color: #8f8; padding: 1em;"><code style="white-space: pre;"><?php echo \json_encode( $config, \JSON_PRETTY_PRINT ); ?></code>
                 </div>
                 You can run one of the following commands :
                 <ul style="text-align: left; width: -moz-max-content; margin: auto;">

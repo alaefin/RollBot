@@ -84,17 +84,17 @@ $( function() {
   $( '#diff' ).change( RollBotDiffCheck );
   $( '#form' ).on( 'click', '#selectallnamespaces',
     function() {
-      $( '#form input:checkbox' ).each( function( index) { $( this ).prop( 'checked', true ); } );
+      $( '#form input[id^="namespaces"]:checkbox' ).each( function( index) { $( this ).prop( 'checked', true ); } );
     }
   );
   $( '#form' ).on( 'click', '#unselectallnamespaces',
     function() {
-      $( '#form input:checkbox' ).each( function( index) { $( this ).prop( 'checked', false ); } );
+      $( '#form input[id^="namespaces"]:checkbox' ).each( function( index) { $( this ).prop( 'checked', false ); } );
     }
   );
   $( '#form' ).on( 'click', '#inverseselectednamespaces',
     function() {
-      $( '#form input:checkbox' ).each( function( index) { $( this ).prop( 'checked', !$( this ).prop( 'checked' ) ); } );
+      $( '#form input[id^="namespaces"]:checkbox' ).each( function( index) { $( this ).prop( 'checked', !$( this ).prop( 'checked' ) ); } );
     }
   );
 } );

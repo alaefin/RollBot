@@ -68,6 +68,10 @@ if ( ( !isset( $namespacesRequest['query']['namespaces'] ) ) || ( !\is_array( $n
 }
 $namespaces = $namespacesRequest['query']['namespaces'];
 foreach( $namespaces as $namespaceId => $namespace ) {
+    if ( $namespace['id'] < 0 ) {
+        unset( $namespaces[ $namespaceId ] );
+        continue;
+    }
     if  ( empty( $namespace['name'] ) ) {
         if ( empty( $namespace['canonical'] ) ) {
             $namespaces[ $namespaceId ]['name'] = '<Main>';
