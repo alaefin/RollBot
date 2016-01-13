@@ -153,7 +153,7 @@ echo "\n", $pagesCount = \count( $pagesList ), " pages edited by {$config['offen
 // Truncating/creating log pages for the current instance of the bot.
 \file_put_contents( __DIR__ . '/rollbotpagesfordeletion', "\n== Pages for deletion ==\nThe following pages should be flagged for deletion (most likely because they were created by {$config['offender']} since {$config['starttimestamp']} and no other user edited them) :\n" );
 \file_put_contents( __DIR__ . '/rollbotpagesforcheck', "\n== Pages requiring human check ==\nThe following pages should be checked by a human user (most likely because someone else than {$config['offender']} edited them since {$config['starttimestamp']}) :\n" );
-\file_put_contents( __DIR__ . '/rollboteditlog', "\n== Pages successfully edited ==\nThe following pages were edited by {$config['offender']} since {$config['starttimestamp']}, they were reverted to a sane version :\n" );
+\file_put_contents( __DIR__ . '/rollboteditlog', "\n== Pages successfully reverted ==\nThe following pages were edited by {$config['offender']} since {$config['starttimestamp']}, they were reverted to a sane version (by any user, not necessarily RollBot) :\n" );
 if ( \file_exists( __DIR__ . '/rollbotreport' ) ) {
     \unlink( __DIR__ . '/rollbotreport' );
 }
@@ -282,7 +282,7 @@ foreach ( $pagesList as $pageId => $page ) {
         }
         // If other users edited the page since the offender created it,
         // they should be listed in the message.
-        $otherUsersMessage = "* [[{$page['title']}]] : [[Special:Diff/{$firstBadRevision['revid']}|created {$firstBadRevision['timestamp']}]]] by {$config['offender']}, ";
+        $otherUsersMessage = "[[Special:Diff/{$firstBadRevision['revid']}|created {$firstBadRevision['timestamp']}]] by {$config['offender']}, ";
         $otherUsersMessage.= 'then edited by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
         if ( \count( $otherUsers ) > 1 ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
@@ -300,10 +300,10 @@ foreach ( $pagesList as $pageId => $page ) {
         if ( !empty( $config['nuke'] ) ) {
             // If the bot is set to nuke, the page is to be deleted.
             // Otherwise, to be checked by humans.
-            \file_put_contents( __DIR__ . '/rollbotpagesfordeletion', $otherUsersMessage . "\n", \FILE_APPEND );
+            \file_put_contents( __DIR__ . '/rollbotpagesfordeletion', "* [[{$page['title']}]] : $otherUsersMessage\n", \FILE_APPEND );
             continue;
         }
-        \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $otherUsersMessage . "\n", \FILE_APPEND );
+        \file_put_contents( __DIR__ . '/rollbotpagesforcheck', "* [[{$page['title']}]] : $otherUsersMessage\n", \FILE_APPEND );
         continue;
     }
 
@@ -313,7 +313,7 @@ foreach ( $pagesList as $pageId => $page ) {
         // we let humans decide what should be done if the bot isn't set to nuke.
         // If it is set to nuke, we delegate the reverting to the normal editing
         // process, and log the list of other users so they can be warned
-        $otherUsersMessage = "* [[{$page['title']}]] ([[Special:Diff/{$firstBadRevision['revid']}|edited {$firstBadRevision['timestamp']}]]] by {$config['offender']}, ";
+        $otherUsersMessage = "[[Special:Diff/{$firstBadRevision['revid']}|edited {$firstBadRevision['timestamp']}]] by {$config['offender']}, ";
         $otherUsersMessage.= 'then by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
         if ( \count( $otherUsers ) > 1 ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
@@ -329,7 +329,7 @@ foreach ( $pagesList as $pageId => $page ) {
             }
         }
         if ( empty( $config['nuke'] ) ) {
-            \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $otherUsersMessage . "\n", \FILE_APPEND );
+            \file_put_contents( __DIR__ . '/rollbotpagesforcheck', "* [[{$page['title']}]] : $otherUsersMessage\n", \FILE_APPEND );
             continue;
         }
     }
@@ -362,7 +362,7 @@ foreach ( $pagesList as $pageId => $page ) {
         if ( !empty( $edit['success'] ) ) {
             $editLogMessage = "* [[{$page['title']}]] (entity) : [[Special:Diff/{$edit['entity']['lastrevid']}|reverting]] to [[Special:Permalink/{$goodRevision['revid']}|rev {$goodRevision['revid']}]] ({$goodRevision['timestamp']}) by {$goodRevision['user']}";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $editLogMessage .= "\n*" . $otherUsersMessage;
+                $editLogMessage .= "\n** " . $otherUsersMessage;
             }
             \file_put_contents( __DIR__ . '/rollboteditlog', $editLogMessage . "\n", \FILE_APPEND );
         }
@@ -370,7 +370,7 @@ foreach ( $pagesList as $pageId => $page ) {
             echo "Difficulty editing [[{$page['title']}]], skipping...\n";
             $messageForCheck = "* [[{$page['title']}]] : could not edit the page. It likely has been edit-blocked or deleted.";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $editLogMessage .= "\n*" . $otherUsersMessage;
+                $editLogMessage .= "\n** " . $otherUsersMessage;
             }
             \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
@@ -393,9 +393,9 @@ foreach ( $pagesList as $pageId => $page ) {
         ] )->getBody(), true );
 
         if ( ( isset( $edit['edit']['result'] ) ) && ( $edit['edit']['result'] === 'Success' ) ) {
-            $editLogMessage = "* [[{$page['title']}]] : [[Special:Diff/{$edit['entity']['lastrevid']}|reverting]] to [[Special:Permalink/{$goodRevision['revid']}|rev {$goodRevision['revid']}]] ({$goodRevision['timestamp']}) by {$goodRevision['user']}";
+            $editLogMessage = "* [[{$page['title']}]] : [[Special:Diff/{$edit['edit']['newrevid']}|reverting]] to [[Special:Permalink/{$goodRevision['revid']}|rev {$goodRevision['revid']}]] ({$goodRevision['timestamp']}) by {$goodRevision['user']}";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $editLogMessage .= "\n*" . $otherUsersMessage;
+                $editLogMessage .= "\n** " . $otherUsersMessage;
             }
             \file_put_contents( __DIR__ . '/rollboteditlog', $editLogMessage . "\n", \FILE_APPEND );
         }
@@ -403,7 +403,7 @@ foreach ( $pagesList as $pageId => $page ) {
             echo "Difficulty editing [[{$page['title']}]], skipping...\n";
             $messageForCheck = "* [[{$page['title']}]] : could not edit the page. It likely has been edit-blocked or deleted.";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $editLogMessage .= "\n*" . $otherUsersMessage;
+                $editLogMessage .= "\n**" . $otherUsersMessage;
             }
             \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
@@ -415,8 +415,8 @@ foreach ( $pagesList as $pageId => $page ) {
     // This will probably mean morea time than 5 seconds (pages for check, etc...)
     // but better safe than sorry
     sleep(5);
-
 }
+
 /*************************
 *     Posting reports    *
 *************************/
