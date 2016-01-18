@@ -288,7 +288,7 @@ foreach ( $pagesList as $pageId => $page ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
                 \array_map(
                     function( $x ) {
-                        return "[[Special:Contributions/{$x['user']}]]";
+                        return "[[Special:Contributions/$x]]";
                     },
                     \array_slice( \array_keys( $otherUsers ), 1, 5 )
                 )
@@ -319,7 +319,7 @@ foreach ( $pagesList as $pageId => $page ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
                 \array_map(
                     function( $x ) {
-                        return "[[Special:Contributions/{$x['user']}]]";
+                        return "[[Special:Contributions/$x]]";
                     },
                     \array_slice( \array_keys( $otherUsers ), 1, 5 )
                 )
