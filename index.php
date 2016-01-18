@@ -372,7 +372,7 @@ foreach ( $pagesList as $pageId => $page ) {
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
                 $editLogMessage .= "\n** " . $otherUsersMessage;
             }
-            \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
+            \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . "\n" . \json_encode( $edit, \JSON_PRETTY_PRINT ) . "\n", \FILE_APPEND );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
             continue;
         }

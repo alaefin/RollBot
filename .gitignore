@@ -4,3 +4,6 @@ vendor/**
 rollbotpagesforcheck
 rollbotpagesfordeletion
 rollboteditlog
+rollboterrorlog
+rollbotsyslog
+rollbotreport
