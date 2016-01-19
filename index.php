@@ -468,7 +468,7 @@ foreach ( $pagesList as $pageId => $page ) {
     // "bots doing more urgent tasks may edit approximately once every five seconds".
     // This will probably mean morea time than 5 seconds (pages for check, etc...)
     // but better safe than sorry
-    sleep(5);
+    sleep(10);
 }
 
 /*************************
