@@ -7,8 +7,11 @@ $config = \json_decode( \file_get_contents( __DIR__ . '/rollbotconfig.json' ), t
 define( 'ROLLBOT_COUNT_EVERY_X_PAGES', 1 );
 
 echo "Offender : {$config['offender']}
-Start timestamp : {$config['starttimestamp']}
-Wiki : {$config['wiki']}
+Start timestamp : {$config['starttimestamp']}\n";
+if ( !empty( $config['endtimestamp'] ) ) {
+    echo "End timestamp : {$config['endtimestamp']}\n";
+}
+echo "Wiki : {$config['wiki']}
 Namespaces : " . implode( ', ', $config['namespaces'] ) . "\n";
 if ( !empty( $config['nuke'] ) ) {
     echo "NUKE : yep\n";
@@ -147,16 +150,28 @@ while ( true ) {
     }
 }
 
-echo "\n", $pagesCount = \count( $pagesList ), " pages edited by {$config['offender']} since {$config['starttimestamp']}\n\n";
+echo "\n", $pagesCount = \count( $pagesList );
+if ( !empty( $config['endtimestamp'] ) ) {
+    " pages edited by {$config['offender']} between {$config['starttimestamp']} and {$config['endtimestamp']}\n\n";
+}
+else {
+    " pages edited by {$config['offender']} since {$config['starttimestamp']}\n\n";
+}
 
 /********************************
 * Getting things back to normal *
 ********************************/
 
 // Truncating/creating log pages for the current instance of the bot.
-\file_put_contents( __DIR__ . '/rollbotpagesfordeletion', "\n== Pages for deletion ==\nThe following pages should be flagged for deletion (most likely because they were created by {$config['offender']} since {$config['starttimestamp']} and no other user edited them) :\n" );
+if ( !empty( $config['endtimestamp'] ) ) {
+    \file_put_contents( __DIR__ . '/rollbotpagesfordeletion', "\n== Pages for deletion ==\nThe following pages should be flagged for deletion (most likely because they were created by {$config['offender']} between {$config['starttimestamp']} and {$config['endtimestamp']}, and no other user edited them since) :\n" );
+    \file_put_contents( __DIR__ . '/rollboteditlog', "\n== Pages successfully reverted ==\nThe following pages were edited by {$config['offender']} between {$config['starttimestamp']} and {$config['endtimestamp']}, they were reverted (by any user, not necessarily RollBot) to a sane version :\n" );
+}
+else {
+    \file_put_contents( __DIR__ . '/rollbotpagesfordeletion', "\n== Pages for deletion ==\nThe following pages should be flagged for deletion (most likely because they were created by {$config['offender']} since {$config['starttimestamp']} and no other user edited them) :\n" );
+    \file_put_contents( __DIR__ . '/rollboteditlog', "\n== Pages successfully reverted ==\nThe following pages were edited by {$config['offender']} since {$config['starttimestamp']}, they were reverted (by any user, not necessarily RollBot) to a sane version :\n" );
+}
 \file_put_contents( __DIR__ . '/rollbotpagesforcheck', "\n== Pages requiring human check ==\nThe following pages should be checked by a human user (most likely because someone else than {$config['offender']} edited them since {$config['starttimestamp']}) :\n" );
-\file_put_contents( __DIR__ . '/rollboteditlog', "\n== Pages successfully reverted ==\nThe following pages were edited by {$config['offender']} since {$config['starttimestamp']}, they were reverted to a sane version (by any user, not necessarily RollBot) :\n" );
 if ( \file_exists( __DIR__ . '/rollbotreport' ) ) {
     \unlink( __DIR__ . '/rollbotreport' );
 }
@@ -180,7 +195,7 @@ foreach ( $pagesList as $pageId => $page ) {
     }
 
     // First, let's establish the first edit by the offender on that page since
-    // the starttimestamp
+    // the starttimestamp, optionally before the endtimestamp
     $firstBadRevisionRequestFormParams = [
             'action' => 'query',
             'prop' => 'revisions',
@@ -200,7 +215,12 @@ foreach ( $pagesList as $pageId => $page ) {
     if ( !isset( $firstBadRevisionRequest['query']['pages'][0]['revisions'][0] ) ) {
         // If no such revision was found, the page or all revisions of interest
         // have been deleted. Skipping to the next page.
-        $messageForCheck = "* [[{$page['title']}]] : could not find a \"bad revision\" by {$config['offender']} since {$config['starttimestamp']}";
+        if ( !empty( $config['endtimestamp'] ) ) {
+            $messageForCheck = "* [[{$page['title']}]] : could not find a \"bad revision\" by {$config['offender']} between {$config['starttimestamp']} and {$config['endtimestamp']}";
+        }
+        else {
+            $messageForCheck = "* [[{$page['title']}]] : could not find a \"bad revision\" by {$config['offender']} since {$config['starttimestamp']}";
+        }
         \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
         continue;
     }
@@ -259,7 +279,12 @@ foreach ( $pagesList as $pageId => $page ) {
         if ( !isset( $badRevisionsRequest['query']['pages'][0]['revisions'] ) ) {
             // A race condition likely occurred, with either the page or the revs
             // being probably deleted. Skipping to the next page.
-            $messageForCheck = "* [[{$page['title']}]] : could not find a \"bad revision\" by {$config['offender']} since {$config['starttimestamp']}";
+            if ( !empty( $config['endtimestamp'] ) ) {
+                $messageForCheck = "* [[{$page['title']}]] : could not find a \"bad revision\" by {$config['offender']} between {$config['starttimestamp']} and {$config['endtimestamp']}";
+            }
+            else {
+                $messageForCheck = "* [[{$page['title']}]] : could not find a \"bad revision\" by {$config['offender']} since {$config['starttimestamp']}";
+            }
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
             continue;
         }
@@ -397,9 +422,9 @@ foreach ( $pagesList as $pageId => $page ) {
         }
         else {
             echo "Difficulty editing [[{$page['title']}]], skipping...\n";
-            $messageForCheck = "* [[{$page['title']}]] : could not edit the page. It likely has been edit-blocked or deleted.";
+            $messageForCheck = "* [[{$page['title']}]] : could not edit the entity.";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $editLogMessage .= "\n** " . $otherUsersMessage . "\n**" . $edit['error']['info'];
+                $messageForCheck .= "\n** " . $otherUsersMessage . "\n**" . $edit['error']['info'];
             }
             \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . "\n" . \json_encode( $edit, \JSON_PRETTY_PRINT ) . "\n", \FILE_APPEND );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
@@ -430,9 +455,9 @@ foreach ( $pagesList as $pageId => $page ) {
         }
         else {
             echo "Difficulty editing [[{$page['title']}]], skipping...\n";
-            $messageForCheck = "* [[{$page['title']}]] : could not edit the page. It likely has been edit-blocked or deleted.";
+            $messageForCheck = "* [[{$page['title']}]] : could not edit the page.";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $editLogMessage .= "\n** " . $otherUsersMessage . "\n**" . $edit['error']['info'];
+                $messageForCheck .= "\n** " . $otherUsersMessage . "\n**" . $edit['error']['info'];
             }
             \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
@@ -477,11 +502,17 @@ else {
 // List of pages verified by the bot
 $reportContent .= \file_get_contents( __DIR__ . '/rollboteditlog' ) . "\n" . \file_get_contents( __DIR__ . '/rollbotpagesfordeletion' ) . "\n" . \file_get_contents( __DIR__ . '/rollbotpagesforcheck' );
 
+// Title for RollBot's report subpage
+$reportTitle = "User:{$config['lg']['lgname']}/Reports/{$config['offender']}/{$config['starttimestamp']}";
+if ( !empty( $config['endtimestamp'] ) ) {
+    $reportTitle .= ' - ' . $config['endtimestamp'];
+}
+
 // Publising the report
 $reporting = \json_decode( $api->request( 'POST', 'w/api.php', [
     'form_params' => $form_params = [
         'action' => 'edit',
-        'title' => "User:{$config['lg']['lgname']}/Reports/{$config['offender']}/{$config['starttimestamp']}",
+        'title' => $reportTitle,
         'watchlist' => 'nochange',
         'bot' => 1,
         'token' => $editToken,
@@ -490,11 +521,11 @@ $reporting = \json_decode( $api->request( 'POST', 'w/api.php', [
 ] )->getBody(), true );
 
 if ( ( isset( $reporting['edit']['result'] ) ) && ( $reporting['edit']['result'] === 'Success' ) ) {
-    echo "Report posted successfully : {$config['wiki']}/wiki/User:{$config['lg']['lgname']}/Reports/{$config['offender']}/{$config['starttimestamp']}\nEntire process successful, exiting...\n";
+    echo "Report posted successfully : {$config['wiki']}/wiki/$reportTitle\nEntire process successful, exiting...\n";
     return;
 }
 else {
-    echo "Difficulty posting my report {$config['wiki']}/wiki/User:{$config['lg']['lgname']}/Reports/{$config['offender']}/{$config['starttimestamp']} , exiting...\n";
+    echo "Difficulty posting my report '{$config['wiki']}/wiki/$reportTitle' , exiting...\n";
     \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $reporting, \JSON_PRETTY_PRINT ) );
     \file_put_contents( __DIR__ . '/rollbotreport' , \json_encode( $reporting, \JSON_PRETTY_PRINT ) . "\n" . $reportContent );
     return;
