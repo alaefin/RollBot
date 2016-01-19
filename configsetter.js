@@ -7,6 +7,7 @@ function RollBotDiffCheck() {
     $( '#error' ).remove();
     $( '#offenderdiv' ).empty().remove();
     $( '#starttimestampdiv' ).empty().remove();
+    $( '#enddiffdiv' ).empty().remove();
     $( '#botrequesturldiv' ).empty().remove();
     $( '#nukediv' ).empty().remove();
     $( '#namespaces' ).empty().remove();
@@ -28,6 +29,11 @@ function RollBotDiffCheck() {
     $( '<div id="starttimestampdiv"></div>' ).appendTo( $( '#form' ) );
     $( '<label for="starttimestamp">Start Timestamp (ISO) : </label>' ).appendTo( $( '#starttimestampdiv' ) );
     $( '<input type="text" id="starttimestamp" name="starttimestamp" />' ).val( data.starttimestamp ).appendTo( $( '#starttimestampdiv' ) );
+    
+    // Text input with the (optionnal) diff at which to stop
+    $( '<div id="enddiffdiv"></div>' ).appendTo( $( '#form' ) );
+    $( '<label for="enddiff">End diff URL : </label>' ).appendTo( $( '#enddiffdiv' ) );
+    $( '<input type="text" id="enddiff" name="enddiff" />' ).appendTo( $( '#enddiffdiv' ) );
     
     // Text input with the URL of the bot request
     $( '<div id="botrequesturldiv"></div>' ).appendTo( $( '#form' ) );

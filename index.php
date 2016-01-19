@@ -108,6 +108,9 @@ $baseContribsListOptions = [
 if ( !empty( $config['namespaces'] ) ) {
     $baseContribsListOptions['ucnamespace'] = \implode( '|', $config['namespaces'] );
 }
+if ( !empty( $config['endtimestamp'] ) ) {
+    $baseContribsListOptions['ucend'] = $config['endtimestamp'];
+}
 
 // And params that change with every request
 $continueContribsListOptions = [ 'ucstart' => $config['starttimestamp'] ];
@@ -178,8 +181,7 @@ foreach ( $pagesList as $pageId => $page ) {
 
     // First, let's establish the first edit by the offender on that page since
     // the starttimestamp
-    $firstBadRevisionRequest = \json_decode( $api->request( 'POST', 'w/api.php', [
-        'form_params' => [
+    $firstBadRevisionRequestFormParams = [
             'action' => 'query',
             'prop' => 'revisions',
             'rvprop' => 'ids|timestamp',
@@ -188,7 +190,12 @@ foreach ( $pagesList as $pageId => $page ) {
             'pageids' => $pageId,
             'rvlimit' => 1,
             'rvuser' => $config['offender']
-        ] + $format
+    ];
+    if ( !empty ($config['endtimestamp'] ) ) {
+        $firstBadRevisionRequestFormParams['rvend'] = $config['endtimestamp'];
+    }
+    $firstBadRevisionRequest = \json_decode( $api->request( 'POST', 'w/api.php', [
+        'form_params' => $firstBadRevisionRequestFormParams + $format
     ] )->getBody(), true );
     if ( !isset( $firstBadRevisionRequest['query']['pages'][0]['revisions'][0] ) ) {
         // If no such revision was found, the page or all revisions of interest
@@ -203,6 +210,7 @@ foreach ( $pagesList as $pageId => $page ) {
     // Now that we have our first bad revision, getting the previous revision,
     // which is guaranteed sane regardless of user.
     // This involves getting two revisions including the first bad one.
+    // This doesn't involve the endtimestamp
     $previousRevisionsRequest = \json_decode( $api->request( 'POST', 'w/api.php', [
         'form_params' => [
             'action' => 'query',
@@ -230,6 +238,8 @@ foreach ( $pagesList as $pageId => $page ) {
     
     // Then let's get a list of all other users who have edited the page since 
     // the first bad revision (included).
+    // This includes any user who has edited after the endtimestamp, even the offender :
+    // for most intents and purposes he is considered another user after the endtimestamp
     $badRevisionsFormParams = [
         'action' => 'query',
         'prop' => 'revisions',
@@ -240,6 +250,9 @@ foreach ( $pagesList as $pageId => $page ) {
         'rvlimit' => 'max'
     ];
     $continueBadRevisionsFormParams = [];
+    if ( isset( $config['endtimestamp'] ) ) {
+        $badRevisionsFormParams['rvend'] = $config['endtimestamp'];
+    }
 
     // Keep fetching revs from the API until there are no more to fetch.
     do {
@@ -254,7 +267,9 @@ foreach ( $pagesList as $pageId => $page ) {
             continue;
         }
         foreach ( $badRevisionsRequest['query']['pages'][0]['revisions'] as $badRevisionId => $badRevision ) {
-            if ( $badRevision['user'] !== $config['offender'] ) {
+            // The offender will be considered an different user after endtimestamp
+            if ( ( $badRevision['user'] !== $config['offender'] )
+                    || ( \date_create_from_format( 'Y-m-d\\TH:i:sT', $badRevision['timestamp'] )->format( 'U' ) > \date_create_from_format( 'Y-m-d\\TH:i:sT', $config['endtimestamp'] ) ) ) {
                 if ( !\array_key_exists( $badRevision['user'], $otherUsers ) ) {
                     $otherUsers[ $badRevision['user'] ] = $badRevision;
                 }
@@ -282,12 +297,21 @@ foreach ( $pagesList as $pageId => $page ) {
         }
         // If other users edited the page since the offender created it,
         // they should be listed in the message.
+        // Other users include the offender after an optional endtimestamp
         $otherUsersMessage = "[[Special:Diff/{$firstBadRevision['revid']}|created {$firstBadRevision['timestamp']}]] by {$config['offender']}, ";
-        $otherUsersMessage.= 'then edited by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
+        if ( \array_keys( $otherUsers )[0] === $config['offender'] ) {
+            $otherUsersMessage.= 'then edited by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'] . ' (after ' . $config['endtimestamp'] . ')';
+        }
+        else {
+            $otherUsersMessage.= 'then edited by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
+        }
         if ( \count( $otherUsers ) > 1 ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
                 \array_map(
-                    function( $x ) {
+                    function( $x ) use ( $config ) {
+                        if ( $x === $config['offender'] ) {
+                            return "[[Special:Contributions/$x]] (after {$config['endtimestamp']})";
+                        }
                         return "[[Special:Contributions/$x]]";
                     },
                     \array_slice( \array_keys( $otherUsers ), 1, 5 )
@@ -314,11 +338,19 @@ foreach ( $pagesList as $pageId => $page ) {
         // If it is set to nuke, we delegate the reverting to the normal editing
         // process, and log the list of other users so they can be warned
         $otherUsersMessage = "[[Special:Diff/{$firstBadRevision['revid']}|edited {$firstBadRevision['timestamp']}]] by {$config['offender']}, ";
-        $otherUsersMessage.= 'then by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
+        if ( \array_keys( $otherUsers )[0] === $config['offender'] ) {
+            $otherUsersMessage.= 'then by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'] . ' (after ' . $config['endtimestamp'] . ')';
+        }
+        else {
+            $otherUsersMessage.= 'then by [[Special:Contributions/' . \array_keys( $otherUsers )[0] . '|' . \array_keys( $otherUsers )[0] . ']] at ' . \array_values( $otherUsers )[0]['timestamp'];
+        }
         if ( \count( $otherUsers ) > 1 ) {
             $otherUsersMessage .= ', and by ' . \implode( ', ',
                 \array_map(
-                    function( $x ) {
+                    function( $x ) use ( $config ) {
+                        if ( $x === $config['offender'] ) {
+                            return "[[Special:Contributions/$x]] (after {$config['endtimestamp']})";
+                        }
                         return "[[Special:Contributions/$x]]";
                     },
                     \array_slice( \array_keys( $otherUsers ), 1, 5 )
@@ -423,6 +455,14 @@ foreach ( $pagesList as $pageId => $page ) {
 // Establishing the content of the report
 // Link to the bot request
 $reportContent = "[[Special:Diff/{$config['botrequestrevid']}|Request]]\n\n";
+// Start timestamp is shown in the name of the report, but if we show
+// the optional end-timestamp, might as well show the start timestamp
+if ( !empty( $config['endtimestamp'] ) ) {
+    $reportContent .= "Pages edited between {$config['starttimestamp']} and {$config['endtimestamp']}\n\n";
+}
+else {
+    $reportContent .= "Pages edited after {$config['starttimestamp']}\n\n";
+}
 // List of namespaces edited by the bot
 $reportContent .= "Namespaces : ";
 $reportContentNamespaces = [];

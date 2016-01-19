@@ -28,9 +28,9 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
         return;
     }
     
-    /************************************************
-    * Getting the revid of the first offending diff *
-    ************************************************/
+    /***********************************************
+    * Getting the info of the first offending diff *
+    ***********************************************/
     // If the diff has no query string, no way to get a revid
     if ( empty( $diff['query'] ) ) {
         \header( 'Location: configsetter.php?error=nodiff' );
@@ -50,7 +50,7 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
         }
         $diffQueryStringArray['diff'] = $diffQueryStringArray['oldid'];
     }
-
+    
     // Getting user (offender) and starttimestamp
     $diffInfo = \json_decode( $api->request( 'GET', $config['wiki'] . '/w/api.php', [
         'query' => [ 
@@ -72,6 +72,59 @@ if ( $_SERVER['REQUEST_METHOD'] === 'POST' ) {
     $config['starttimestamp'] = $badRevision['timestamp'];
     $config['offender'] = $badRevision['user'];
     $prefilledNamespace = $pages[0]['ns'];
+    
+    /*****************************************************************
+    * Getting the timestamp of the last offending diff, if it exists *
+    *****************************************************************/
+    // If the diff has no query string, no way to get a revid
+    if ( !empty( $_POST['enddiff'] ) ) {
+        $endDiff = \parse_url( $_POST['enddiff'] );
+        if ( $endDiff === null ) {
+            \header( 'Location: configsetter.php?error=noenddiff');
+            return;
+        }
+        if ( empty( $endDiff['query'] ) ) {
+            \header( 'Location: configsetter.php?error=noenddiff' );
+            return;
+        }
+        
+        // If the query has no 'diff' or 'oldid' element, no way to get a revid
+        \parse_str( $endDiff['query'], $endDiffQueryStringArray );
+        if ( ( !isset( $endDiffQueryStringArray['diff'] ) ) && ( !isset( $endDiffQueryStringArray['oldid'] ) ) ) {
+            \header( 'Location: configsetter.php?error=noenddiff' );
+            return;
+        }
+        if ( ( $endDiffQueryStringArray['diff'] === 'prev' ) || ( empty( $endDiffQueryStringArray['diff'] ) ) ) {
+            if ( ( empty( $endDiffQueryStringArray['oldid'] ) ) || ( !\ctype_digit( $endDiffQueryStringArray['oldid'] ) ) ) {
+                \header( 'Location: configsetter.php?error=nodiff' );
+                return;
+            }
+            $endDiffQueryStringArray['diff'] = $endDiffQueryStringArray['oldid'];
+        }
+        
+        // Getting endtimestamp
+        $endDiffInfo = \json_decode( $api->request( 'GET', $config['wiki'] . '/w/api.php', [
+            'query' => [
+                'action' => 'query',
+                'prop' => 'revisions',
+                'revids' => $endDiffQueryStringArray['diff'],
+                'rvprop' => 'timestamp',
+                'format' => 'json',
+                'formatversion' => 2
+            ]
+        ] )->getBody(), true );
+        if ( ( ( !isset( $endDiffInfo['query']['pages'] ) )
+                || ( \count( $endpages = \array_values( $endDiffInfo['query']['pages'] ) ) !== 1 ) )
+                || ( \count( $endpages[0]['revisions'] ) !== 1 ) ) {
+            \header( 'Location: configsetter.php?error=noendrev' );
+            return;
+        }
+        if ( date_create_from_format( 'Y-m-d\\TH:i:sT', $endpages[0]['revisions'][0]['timestamp'] )->format( 'U' ) < date_create_from_format( 'Y-m-d\\TH:i:sT', $config['starttimestamp'] )->format( 'U' ) ) {
+            \header( 'Location: configsetter.php?error=enddiffbeforestartdiff' );
+            return;
+        }
+        $config['endtimestamp'] = $endpages[0]['revisions'][0]['timestamp'];
+    }
     
     // Comparing namespaces from the request to namespaces existing on the wiki
     if ( ( !isset( $_POST['namespaces'] ) ) || ( !\count( $_POST['namespaces'] ) ) ) {
