@@ -250,9 +250,6 @@ foreach ( $pagesList as $pageId => $page ) {
         'rvlimit' => 'max'
     ];
     $continueBadRevisionsFormParams = [];
-    if ( isset( $config['endtimestamp'] ) ) {
-        $badRevisionsFormParams['rvend'] = $config['endtimestamp'];
-    }
 
     // Keep fetching revs from the API until there are no more to fetch.
     do {
