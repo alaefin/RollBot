@@ -332,9 +332,9 @@ foreach ( $pagesList as $pageId => $page ) {
                 \array_map(
                     function( $x ) use ( $config ) {
                         if ( $x === $config['offender'] ) {
-                            return "[[Special:Contributions/$x]] (after {$config['endtimestamp']})";
+                            return "[[Special:Contributions/$x|$x]] (after {$config['endtimestamp']})";
                         }
-                        return "[[Special:Contributions/$x]]";
+                        return "[[Special:Contributions/$x|$x]]";
                     },
                     \array_slice( \array_keys( $otherUsers ), 1, 5 )
                 )
@@ -371,9 +371,9 @@ foreach ( $pagesList as $pageId => $page ) {
                 \array_map(
                     function( $x ) use ( $config ) {
                         if ( $x === $config['offender'] ) {
-                            return "[[Special:Contributions/$x]] (after {$config['endtimestamp']})";
+                            return "[[Special:Contributions/$x|$x]] (after {$config['endtimestamp']})";
                         }
-                        return "[[Special:Contributions/$x]]";
+                        return "[[Special:Contributions/$x|$x]]";
                     },
                     \array_slice( \array_keys( $otherUsers ), 1, 5 )
                 )
