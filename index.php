@@ -427,7 +427,10 @@ foreach ( $pagesList as $pageId => $page ) {
             echo "Difficulty editing [[{$page['title']}]], skipping...\n";
             $messageForCheck = "* [[{$page['title']}]] : could not edit the entity.";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $messageForCheck .= "\n** " . $otherUsersMessage . "\n**" . $edit['error']['info'];
+                $messageForCheck .= "\n** " . $otherUsersMessage;
+            }
+            if ( !empty( $edit['error']['info'] ) ) {
+                $messageForCheck .= "\n**" . $edit['error']['info'];
             }
             \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . "\n" . \json_encode( $edit, \JSON_PRETTY_PRINT ) . "\n", \FILE_APPEND );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
@@ -460,7 +463,10 @@ foreach ( $pagesList as $pageId => $page ) {
             echo "Difficulty editing [[{$page['title']}]], skipping...\n";
             $messageForCheck = "* [[{$page['title']}]] : could not edit the page.";
             if ( ( !empty( $otherUsersMessage ) && !empty( $config['nuke'] ) ) ) {
-                $messageForCheck .= "\n** " . $otherUsersMessage . "\n**" . $edit['error']['info'];
+                $messageForCheck .= "\n** " . $otherUsersMessage;
+            }
+            if ( !empty( $edit['error']['info'] ) ) {
+                $messageForCheck .= "\n**" . $edit['error']['info'];
             }
             \file_put_contents( __DIR__ . '/rollboterrorlog', \json_encode( $form_params, \JSON_PRETTY_PRINT ) . \json_encode( $edit, \JSON_PRETTY_PRINT ) );
             \file_put_contents( __DIR__ . '/rollbotpagesforcheck', $messageForCheck . "\n", \FILE_APPEND );
