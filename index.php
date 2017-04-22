@@ -11,6 +11,9 @@ Start timestamp : {$config['starttimestamp']}\n";
 if ( !empty( $config['endtimestamp'] ) ) {
     echo "End timestamp : {$config['endtimestamp']}\n";
 }
+else {
+   $config['endtimestamp'] = ( new DateTime( '@' . time(), new DateTimeZone( 'UTC' ) ) )->format( 'Y-m-d\\TH:i:s\\Z' );
+}
 echo "Wiki : {$config['wiki']}
 Namespaces : " . implode( ', ', $config['namespaces'] ) . "\n";
 if ( !empty( $config['nuke'] ) ) {
@@ -127,23 +130,23 @@ while ( true ) {
     $contribsRequest = \json_decode( $api->request( 'POST', 'w/api.php', [
         'form_params' => $baseContribsListOptions + $continueContribsListOptions + $format
     ] )->getBody(), true );
-
+    
     if ( !isset( $contribsRequest['query']['usercontribs'] ) ) {
         echo "Invalid format for the list of contribs, exiting...\n";
         return;
     }
     $contribs = $contribsRequest['query']['usercontribs'];
-
+    
     // Building the list of pages
     foreach ( $contribs as $contrib ) {
         if ( !\array_key_exists( $contrib['pageid'], $pagesList ) ) {
             $pagesList[ $contrib['pageid'] ] = [ 'title' => $contrib['title'], 'ns' => $contrib['ns'] ];
         }
     }
-
+    
     // Preparing to get more contribs at the next loop iteration
-    if ( isset( $contribs['continue']['uccontinue'] ) ) {
-        $continueContribsListOptions = [ 'uccontinue' => $contribs['continue']['uccontinue'] ];
+    if ( isset( $contribsRequest['continue']['uccontinue'] ) ) {
+        $continueContribsListOptions = [ 'uccontinue' => $contribsRequest['continue']['uccontinue'] ];
     }
     else {
         break;
@@ -291,7 +294,7 @@ foreach ( $pagesList as $pageId => $page ) {
         foreach ( $badRevisionsRequest['query']['pages'][0]['revisions'] as $badRevisionId => $badRevision ) {
             // The offender will be considered an different user after endtimestamp
             if ( ( $badRevision['user'] !== $config['offender'] )
-                    || ( \date_create_from_format( 'Y-m-d\\TH:i:sT', $badRevision['timestamp'] )->format( 'U' ) > \date_create_from_format( 'Y-m-d\\TH:i:sT', $config['endtimestamp'] ) ) ) {
+                    || ( \date_create_from_format( 'Y-m-d\\TH:i:sT', $badRevision['timestamp'] )->format( 'U' ) > \date_create_from_format( 'Y-m-d\\TH:i:sT', $config['endtimestamp'] )->format( 'U' ) ) ) {
                 if ( !\array_key_exists( $badRevision['user'], $otherUsers ) ) {
                     $otherUsers[ $badRevision['user'] ] = $badRevision;
                 }
